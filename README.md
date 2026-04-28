@@ -40,6 +40,8 @@ u          # undo
 Mode indicator (`INSERT` / `NORMAL` / `EX`) appears at bottom-right,
 theme-colored (reverse `borderMuted` / `borderAccent` / `warning`).
 
+When Pi's TUI runtime exposes hardware cursor support and the terminal honors DECSCUSR cursor-shape sequences, pi-vim shows a blinking bar cursor in Insert mode and a blinking block cursor in Normal and EX mode. Older runtimes or terminals that ignore cursor-shape sequences keep the existing software cursor behavior.
+
 ## why pi-vim
 
 - Fast modal editing without leaving Pi.
