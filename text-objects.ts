@@ -7,6 +7,12 @@ export type TextObjectRange = {
 
 export type WordTextObjectClass = "word" | "WORD";
 
+export type DelimiterSpec = {
+  type: "quote" | "bracket";
+  open: string;
+  close: string;
+};
+
 function normalizeCount(count: number): number {
   if (!Number.isFinite(count) || count < 1) return 1;
   return Math.floor(count);
@@ -18,6 +24,14 @@ function clampCursorCol(line: string, cursorCol: number): number {
 
   const normalized = Math.trunc(cursorCol);
   return Math.max(0, Math.min(normalized, line.length - 1));
+}
+
+function clampCursorAbs(text: string, cursorAbs: number): number {
+  if (text.length === 0) return 0;
+  if (!Number.isFinite(cursorAbs)) return 0;
+
+  const normalized = Math.trunc(cursorAbs);
+  return Math.max(0, Math.min(normalized, text.length - 1));
 }
 
 function findLogicalLineBounds(line: string, cursorCol: number): { start: number; end: number } {
@@ -33,6 +47,16 @@ function findLogicalLineBounds(line: string, cursorCol: number): { start: number
   };
 }
 
+function findCurrentLineBounds(text: string, cursorAbs: number): { startAbs: number; endAbs: number } {
+  const cursor = clampCursorAbs(text, cursorAbs);
+  const bounds = findLogicalLineBounds(text, cursor);
+
+  return {
+    startAbs: bounds.start,
+    endAbs: bounds.end,
+  };
+}
+
 function isWordTextObjectChar(ch: string | undefined, semanticClass: WordTextObjectClass): boolean {
   if (ch === undefined) return false;
   if (semanticClass === "WORD") return !/\s/.test(ch);
@@ -41,6 +65,93 @@ function isWordTextObjectChar(ch: string | undefined, semanticClass: WordTextObj
 
 function isWhitespace(ch: string | undefined): boolean {
   return ch !== undefined && /\s/.test(ch);
+}
+
+export function normalizeDelimiterKey(key: string): DelimiterSpec | null {
+  if (key === "\"" || key === "'" || key === "`") {
+    return {
+      type: "quote",
+      open: key,
+      close: key,
+    };
+  }
+
+  return null;
+}
+
+export function isEscapedDelimiter(text: string, index: number): boolean {
+  if (!Number.isInteger(index) || index <= 0 || index >= text.length) return false;
+
+  let backslashCount = 0;
+  for (let i = index - 1; i >= 0 && text[i] === "\\"; i--) {
+    backslashCount++;
+  }
+
+  return backslashCount % 2 === 1;
+}
+
+export function resolveQuoteObjectRange(
+  text: string,
+  cursorAbs: number,
+  kind: TextObjectKind,
+  quote: string,
+): TextObjectRange | null {
+  const spec = normalizeDelimiterKey(quote);
+  if (spec?.type !== "quote") return null;
+
+  const cursor = clampCursorAbs(text, cursorAbs);
+  const bounds = findCurrentLineBounds(text, cursor);
+  if (bounds.startAbs >= bounds.endAbs) return null;
+
+  let openIndex: number | null = null;
+  let bestPair: { open: number; close: number } | null = null;
+
+  for (let index = bounds.startAbs; index < bounds.endAbs; index++) {
+    if (text[index] !== quote || isEscapedDelimiter(text, index)) continue;
+
+    if (openIndex === null) {
+      openIndex = index;
+      continue;
+    }
+
+    const closeIndex = index;
+    if (openIndex <= cursor && cursor <= closeIndex) {
+      if (bestPair === null || closeIndex - openIndex < bestPair.close - bestPair.open) {
+        bestPair = { open: openIndex, close: closeIndex };
+      }
+    }
+    openIndex = null;
+  }
+
+  if (bestPair === null) return null;
+
+  if (kind === "i") {
+    return {
+      startAbs: bestPair.open + 1,
+      endAbs: bestPair.close,
+    };
+  }
+
+  return {
+    startAbs: bestPair.open,
+    endAbs: bestPair.close + 1,
+  };
+}
+
+export function resolveDelimitedTextObjectRange(
+  text: string,
+  cursorAbs: number,
+  kind: TextObjectKind,
+  key: string,
+): TextObjectRange | null {
+  const spec = normalizeDelimiterKey(key);
+  if (spec === null) return null;
+
+  if (spec.type === "quote") {
+    return resolveQuoteObjectRange(text, cursorAbs, kind, spec.open);
+  }
+
+  return null;
 }
 
 export function resolveWordTextObjectRange(
