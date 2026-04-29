@@ -14,6 +14,7 @@ import { CURSOR_MARKER, visibleWidth } from "@mariozechner/pi-tui";
 import type { WordMotionClass } from "../motions.js";
 import type { WordMotionDirection, WordMotionTarget } from "../word-boundary-cache.js";
 import installPiVim, { ModalEditor } from "../index.js";
+import { setPiVimSettingsReaderForTests } from "../clipboard-policy.js";
 import {
   createCursorShapeTui,
   createEditorWithSpy,
@@ -66,6 +67,8 @@ type EditorFactory = (
   theme: ConstructorParameters<typeof ModalEditor>[1],
   keybindings: ConstructorParameters<typeof ModalEditor>[2],
 ) => ModalEditor;
+
+type NotificationCall = { message: string; type: string };
 
 function getRawEditor(editor: ModalEditor): ModalEditorTestInternals {
   return editor as unknown as ModalEditorTestInternals;
@@ -122,6 +125,7 @@ function setInternalCursor(editor: ModalEditor, cursorCol: number): void {
 type InstalledExtension = {
   editorFactory: EditorFactory;
   readonly notificationCalls: number;
+  readonly notifications: NotificationCall[];
   readonly shutdownCalls: number;
   emitShutdown(): Promise<void>;
   readonly sessionShutdownHandlerCount: number;
@@ -132,15 +136,19 @@ async function installExtensionWithEditorFactory(): Promise<InstalledExtension> 
   const pi = createExtensionApiHarness();
   let editorFactory: EditorFactory | null = null;
   let notificationCalls = 0;
+  const notifications: NotificationCall[] = [];
   let shutdownCalls = 0;
   const ctx = {
+    cwd: process.cwd(),
+    hasUI: true,
     ui: {
       theme: stubTheme,
       setEditorComponent(factory: EditorFactory): void {
         editorFactory = factory;
       },
-      notify(): void {
+      notify(message: string, type: string): void {
         notificationCalls++;
+        notifications.push({ message, type });
       },
     },
     shutdown(): void {
@@ -159,6 +167,9 @@ async function installExtensionWithEditorFactory(): Promise<InstalledExtension> 
     editorFactory,
     get notificationCalls() {
       return notificationCalls;
+    },
+    get notifications() {
+      return notifications;
     },
     get shutdownCalls() {
       return shutdownCalls;
@@ -855,6 +866,43 @@ describe("ex mini-mode", () => {
     assert.deepEqual(session.notifications, ["Unsupported ex command: :wq"]);
     assert.equal(session.editor.getText(), "hello");
     assert.deepEqual(session.editor.getCursor(), { line: 0, col: 2 });
+  });
+});
+
+describe("clipboard mirror policy settings", () => {
+  it("applies clipboardMirror=never from settings", async () => {
+    const restore = setPiVimSettingsReaderForTests(() => ({ clipboardMirror: "never" }));
+
+    try {
+      const extension = await installExtensionWithEditorFactory();
+      const editor = extension.editorFactory(stubTui, stubTheme, stubKeybindings);
+
+      assert.equal(editor.getClipboardMirrorPolicy(), "never");
+      assert.equal(extension.notificationCalls, 0);
+    } finally {
+      restore();
+    }
+  });
+
+  it("falls back to all and warns for invalid clipboardMirror", async () => {
+    const restore = setPiVimSettingsReaderForTests(() => ({ clipboardMirror: "delete" }));
+
+    try {
+      const extension = await installExtensionWithEditorFactory();
+      const editor = extension.editorFactory(stubTui, stubTheme, stubKeybindings);
+
+      assert.equal(editor.getClipboardMirrorPolicy(), "all");
+      assert.equal(extension.notificationCalls, 1);
+      assert.equal(extension.notifications.length, 1);
+
+      const notification = extension.notifications[0];
+      assert.ok(notification, "expected warning notification");
+      assert.equal(notification.type, "warning");
+      assert.match(notification.message, /delete/);
+      assert.match(notification.message, /all, yank, never/);
+    } finally {
+      restore();
+    }
   });
 });
 

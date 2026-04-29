@@ -48,6 +48,8 @@ import {
 } from "./word-boundary-cache.js";
 import {
   DEFAULT_CLIPBOARD_MIRROR_POLICY,
+  readPiVimSettings,
+  resolveClipboardMirrorPolicy,
   type ClipboardMirrorPolicy,
   type RegisterWriteSource,
 } from "./clipboard-policy.js";
@@ -3063,6 +3065,12 @@ export default function (pi: ExtensionAPI) {
   let cursorShapeCleanup: CursorShapeCleanup | null = null;
 
   pi.on("session_start", (_event, ctx) => {
+    const piVimSettings = readPiVimSettings(ctx.cwd);
+    const clipboardMirrorPolicy = resolveClipboardMirrorPolicy(piVimSettings.clipboardMirror);
+    if (clipboardMirrorPolicy.warning && ctx.hasUI) {
+      ctx.ui.notify(clipboardMirrorPolicy.warning, "warning");
+    }
+
     const t = ctx.ui.theme;
     const reverseVideo = (s: string) => `\x1b[7m${s}\x1b[27m`;
     const colorizers = t ? {
@@ -3073,6 +3081,7 @@ export default function (pi: ExtensionAPI) {
     ctx.ui.setEditorComponent((tui, theme, kb) => {
       cursorShapeCleanup = enableCursorShapeSupport(tui);
       const editor = new ModalEditor(tui, theme, kb, colorizers);
+      editor.setClipboardMirrorPolicy(clipboardMirrorPolicy.policy);
       editor.setQuitFn(() => ctx.shutdown());
       editor.setNotifyFn((message) => ctx.ui.notify(message, "warning"));
       return editor;
