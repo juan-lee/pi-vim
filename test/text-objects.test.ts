@@ -4,9 +4,34 @@ import {
   isEscapedDelimiter,
   normalizeDelimiterKey,
   resolveDelimitedTextObjectRange,
+  resolveMatchingPairMotionTarget,
   resolveQuoteObjectRange,
   resolveWordTextObjectRange,
 } from "../text-objects.js";
+
+function currentLineBoundsFor(text: string, cursorAbs: number): {
+  currentLineStartAbs: number;
+  currentLineEndAbs: number;
+} {
+  const cursorForLine = cursorAbs > 0 && (cursorAbs >= text.length || text[cursorAbs] === "\n")
+    ? cursorAbs - 1
+    : cursorAbs;
+  const currentLineStartAbs = text.lastIndexOf("\n", cursorForLine) + 1;
+  const nextNewline = text.indexOf("\n", currentLineStartAbs);
+  const currentLineEndAbs = nextNewline === -1 ? text.length : nextNewline;
+
+  return { currentLineStartAbs, currentLineEndAbs };
+}
+
+function resolveMatchingPairAt(text: string, cursorAbs: number) {
+  const bounds = currentLineBoundsFor(text, cursorAbs);
+  return resolveMatchingPairMotionTarget(
+    text,
+    cursorAbs,
+    bounds.currentLineStartAbs,
+    bounds.currentLineEndAbs,
+  );
+}
 
 describe("resolveWordTextObjectRange", () => {
   it("resolves an inner word on the current line", () => {
@@ -118,6 +143,172 @@ describe("normalizeDelimiterKey", () => {
   it("returns null for unsupported delimiter keys", () => {
     assert.equal(normalizeDelimiterKey("x"), null);
     assert.equal(resolveDelimitedTextObjectRange("x", 0, "i", "x"), null);
+  });
+});
+
+describe("resolveMatchingPairMotionTarget", () => {
+  it("resolves opening and closing parentheses", () => {
+    const text = "a(b)c";
+
+    assert.deepEqual(resolveMatchingPairAt(text, 1), {
+      pair: "()",
+      sourceAbs: 1,
+      targetAbs: 3,
+      rangeAnchorAbs: 1,
+    });
+    assert.deepEqual(resolveMatchingPairAt(text, 3), {
+      pair: "()",
+      sourceAbs: 3,
+      targetAbs: 1,
+      rangeAnchorAbs: 3,
+    });
+  });
+
+  it("resolves bracket and brace pairs", () => {
+    assert.deepEqual(resolveMatchingPairAt("a[b]c", 1), {
+      pair: "[]",
+      sourceAbs: 1,
+      targetAbs: 3,
+      rangeAnchorAbs: 1,
+    });
+    assert.deepEqual(resolveMatchingPairAt("a[b]c", 3), {
+      pair: "[]",
+      sourceAbs: 3,
+      targetAbs: 1,
+      rangeAnchorAbs: 3,
+    });
+    assert.deepEqual(resolveMatchingPairAt("a{b}c", 1), {
+      pair: "{}",
+      sourceAbs: 1,
+      targetAbs: 3,
+      rangeAnchorAbs: 1,
+    });
+    assert.deepEqual(resolveMatchingPairAt("a{b}c", 3), {
+      pair: "{}",
+      sourceAbs: 3,
+      targetAbs: 1,
+      rangeAnchorAbs: 3,
+    });
+  });
+
+  it("chooses partners for nested same-type pairs", () => {
+    const text = "a(b(c)d)e";
+
+    assert.deepEqual(resolveMatchingPairAt(text, 1), {
+      pair: "()",
+      sourceAbs: 1,
+      targetAbs: 7,
+      rangeAnchorAbs: 1,
+    });
+    assert.deepEqual(resolveMatchingPairAt(text, 3), {
+      pair: "()",
+      sourceAbs: 3,
+      targetAbs: 5,
+      rangeAnchorAbs: 3,
+    });
+  });
+
+  it("resolves cross-line partners", () => {
+    const text = "fn(\n  x\n)";
+
+    assert.deepEqual(resolveMatchingPairAt(text, 2), {
+      pair: "()",
+      sourceAbs: 2,
+      targetAbs: 8,
+      rangeAnchorAbs: 2,
+    });
+  });
+
+  it("scans forward on the current logical line", () => {
+    const text = "xx (a)";
+
+    assert.deepEqual(resolveMatchingPairAt(text, 0), {
+      pair: "()",
+      sourceAbs: 3,
+      targetAbs: 5,
+      rangeAnchorAbs: 0,
+    });
+  });
+
+  it("does not scan forward across a newline", () => {
+    const text = "abc\n(def)";
+
+    assert.equal(resolveMatchingPairAt(text, 0), null);
+  });
+
+  it("returns null when no delimiter is on the current line", () => {
+    assert.equal(resolveMatchingPairAt("abc", 1), null);
+  });
+
+  it("returns null for unmatched opening and closing delimiters", () => {
+    assert.equal(resolveMatchingPairAt("abc (", 4), null);
+    assert.equal(resolveMatchingPairAt("abc )", 4), null);
+  });
+
+  it("counts delimiters inside strings lexically", () => {
+    const text = 'call("literal ) still counts", value)';
+    const stringCloseParen = text.indexOf(")");
+
+    assert.deepEqual(resolveMatchingPairAt(text, 4), {
+      pair: "()",
+      sourceAbs: 4,
+      targetAbs: stringCloseParen,
+      rangeAnchorAbs: 4,
+    });
+  });
+
+  it("matches crossed mixed delimiters by same delimiter type", () => {
+    const text = "([)]";
+
+    assert.deepEqual(resolveMatchingPairAt(text, 0), {
+      pair: "()",
+      sourceAbs: 0,
+      targetAbs: 2,
+      rangeAnchorAbs: 0,
+    });
+    assert.deepEqual(resolveMatchingPairAt(text, 1), {
+      pair: "[]",
+      sourceAbs: 1,
+      targetAbs: 3,
+      rangeAnchorAbs: 1,
+    });
+  });
+
+  it("normalizes visible EOL to a delimiter before resolving", () => {
+    const text = "x(y)";
+
+    assert.deepEqual(resolveMatchingPairAt(text, text.length), {
+      pair: "()",
+      sourceAbs: 3,
+      targetAbs: 1,
+      rangeAnchorAbs: 3,
+    });
+  });
+
+  it("returns null at visible EOL after a non-delimiter", () => {
+    const text = "x(y) z";
+
+    assert.equal(resolveMatchingPairAt(text, text.length), null);
+  });
+
+  it("returns null for empty buffer and empty logical line", () => {
+    assert.equal(resolveMatchingPairMotionTarget("", 0, 0, 0), null);
+    assert.equal(resolveMatchingPairMotionTarget("\nabc", 0, 0, 0), null);
+  });
+
+  it("resolves in a large buffer with many unmatched delimiters", () => {
+    const unmatchedClosers = "}".repeat(2_000);
+    const target = "{target}";
+    const unmatchedOpeners = "{".repeat(4_000);
+    const text = `${unmatchedClosers}${target}${unmatchedOpeners}`;
+    const targetStartAbs = unmatchedClosers.length;
+
+    assert.deepEqual(resolveMatchingPairAt(text, targetStartAbs), {
+      pair: "{}",
+      sourceAbs: targetStartAbs,
+      targetAbs: targetStartAbs + target.length - 1,
+      rangeAnchorAbs: targetStartAbs,
+    });
   });
 });
 
