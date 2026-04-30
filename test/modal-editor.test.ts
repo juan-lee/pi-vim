@@ -2790,6 +2790,81 @@ describe("delimited text objects at end of line", () => {
     assert.equal(editor.getRegister(), "hi");
     assert.deepEqual(editor.getCursor(), { line: 0, col: 5 });
   });
+
+  it("resolves delimiter objects from $ on the final non-empty line", () => {
+    const scenarios = [
+      {
+        name: "bracket",
+        initial: "before\ncall(foo)",
+        cursorLine: 1,
+        keys: ["$", "d", "i", "("],
+        expectedText: "before\ncall()",
+        expectedRegister: "foo",
+        expectedCursor: { line: 1, col: 5 },
+      },
+      {
+        name: "quote",
+        initial: "before\nsay \"hi\"",
+        cursorLine: 1,
+        keys: ["$", "d", "i", "\""],
+        expectedText: "before\nsay \"\"",
+        expectedRegister: "hi",
+        expectedCursor: { line: 1, col: 5 },
+      },
+    ];
+
+    for (const scenario of scenarios) {
+      const { editor } = createMultiLineEditor(scenario.initial);
+
+      setInternalCursor(editor, 0, scenario.cursorLine);
+      sendKeys(editor, scenario.keys);
+
+      assert.equal(editor.getText(), scenario.expectedText, `${scenario.name} text`);
+      assert.equal(editor.getRegister(), scenario.expectedRegister, `${scenario.name} register`);
+      assert.deepEqual(editor.getCursor(), scenario.expectedCursor, `${scenario.name} cursor`);
+    }
+  });
+
+  it("cancels delimiter objects from a final empty trailing-newline line", () => {
+    const scenarios = [
+      { name: "bracket", keys: ["d", "i", "("] },
+      { name: "quote", keys: ["c", "i", "\""] },
+    ];
+
+    for (const scenario of scenarios) {
+      const { editor } = createMultiLineEditor("call(foo)\n");
+      const beforeCursor = { line: 1, col: 0 };
+      editor.setRegister("seed");
+
+      setInternalCursor(editor, beforeCursor.col, beforeCursor.line);
+      sendKeys(editor, scenario.keys);
+
+      assert.equal(editor.getText(), "call(foo)\n", `${scenario.name} text`);
+      assert.equal(editor.getRegister(), "seed", `${scenario.name} register`);
+      assert.deepEqual(editor.getCursor(), beforeCursor, `${scenario.name} cursor`);
+      assert.equal(editor.getMode(), "normal", `${scenario.name} mode`);
+    }
+  });
+
+  it("cancels delimiter objects in an empty buffer", () => {
+    const scenarios = [
+      { name: "delete quote", keys: ["d", "i", "\""] },
+      { name: "change bracket", keys: ["c", "i", "("] },
+    ];
+
+    for (const scenario of scenarios) {
+      const { editor } = createEditorWithSpy("");
+      const beforeCursor = { line: 0, col: 0 };
+      editor.setRegister("seed");
+
+      sendKeys(editor, scenario.keys);
+
+      assert.equal(editor.getText(), "", `${scenario.name} text`);
+      assert.equal(editor.getRegister(), "seed", `${scenario.name} register`);
+      assert.deepEqual(editor.getCursor(), beforeCursor, `${scenario.name} cursor`);
+      assert.equal(editor.getMode(), "normal", `${scenario.name} mode`);
+    }
+  });
 });
 
 describe("text object cancellation hardening", () => {

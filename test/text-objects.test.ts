@@ -312,6 +312,20 @@ describe("resolveBracketObjectRange", () => {
     });
   });
 
+  it("keeps mixed-bracket matching lexical for the selected delimiter type", () => {
+    const text = "outer { [ value } still ]";
+    const cursorAbs = text.indexOf("value");
+
+    assert.deepEqual(resolveDelimitedTextObjectRange(text, cursorAbs, "a", "{"), {
+      startAbs: text.indexOf("{"),
+      endAbs: text.indexOf("}") + 1,
+    });
+    assert.deepEqual(resolveDelimitedTextObjectRange(text, cursorAbs, "a", "["), {
+      startAbs: text.indexOf("["),
+      endAbs: text.indexOf("]") + 1,
+    });
+  });
+
   it("returns an empty inner range for empty brackets", () => {
     const text = "fn()";
 
