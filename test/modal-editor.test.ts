@@ -87,6 +87,95 @@ function focusEditor(editor: ModalEditor): void {
   editor.focused = true;
 }
 
+type WrapperFacingEditor = ModalEditor & {
+  actionHandlers: Map<string, unknown>;
+  onSubmit: (text: string) => unknown;
+  onChange: (text: string) => unknown;
+  onEscape: () => unknown;
+  onCtrlD: () => unknown;
+  onPasteImage: (path: string) => unknown;
+  onExtensionShortcut: (shortcut: string) => unknown;
+  focused: boolean;
+  disableSubmit: boolean;
+  borderColor: (text: string) => string;
+};
+
+const WRAPPER_FACING_METHODS = [
+  "handleInput",
+  "render",
+  "invalidate",
+  "getText",
+  "setText",
+  "insertTextAtCursor",
+  "getExpandedText",
+  "addToHistory",
+  "setAutocompleteProvider",
+  "setPaddingX",
+  "setAutocompleteMaxVisible",
+  "getLines",
+  "getCursor",
+  "getMode",
+  "onAction",
+] as const satisfies readonly (keyof WrapperFacingEditor)[];
+
+const WRAPPER_FACING_FIELDS = [
+  "onSubmit",
+  "onChange",
+  "onEscape",
+  "onCtrlD",
+  "onPasteImage",
+  "onExtensionShortcut",
+  "actionHandlers",
+  "focused",
+  "disableSubmit",
+  "borderColor",
+] as const satisfies readonly (keyof WrapperFacingEditor)[];
+
+type DecoratedCall =
+  | { method: "insertTextAtCursor"; text: string }
+  | { method: "handleInput"; data: string }
+  | { method: "setText"; text: string };
+
+function assertWrapperFacingSurface(editor: ModalEditor): asserts editor is WrapperFacingEditor {
+  const candidate = editor as WrapperFacingEditor;
+
+  for (const method of WRAPPER_FACING_METHODS) {
+    assert.equal(typeof candidate[method], "function", `${method} should be a function`);
+  }
+
+  for (const field of WRAPPER_FACING_FIELDS) {
+    assert.ok(field in candidate, `${field} should exist`);
+  }
+
+  assert.ok(candidate.actionHandlers instanceof Map, "actionHandlers should be a Map");
+  assert.equal(typeof candidate.focused, "boolean", "focused should be a boolean");
+  assert.equal(typeof candidate.disableSubmit, "boolean", "disableSubmit should be a boolean");
+  assert.equal(typeof candidate.borderColor, "function", "borderColor should be a function");
+}
+
+function decorateLikeImageAttachments(editor: ModalEditor): DecoratedCall[] {
+  assertWrapperFacingSurface(editor);
+  const calls: DecoratedCall[] = [];
+  const originalInsertTextAtCursor = editor.insertTextAtCursor.bind(editor);
+  const originalHandleInput = editor.handleInput.bind(editor);
+  const originalSetText = editor.setText.bind(editor);
+
+  editor.insertTextAtCursor = (text: string) => {
+    calls.push({ method: "insertTextAtCursor", text });
+    return originalInsertTextAtCursor(text);
+  };
+  editor.handleInput = (data: string) => {
+    calls.push({ method: "handleInput", data });
+    return originalHandleInput(data);
+  };
+  editor.setText = (text: string) => {
+    calls.push({ method: "setText", text });
+    return originalSetText(text);
+  };
+
+  return calls;
+}
+
 function findCursorMarkerLine(lines: string[]): string {
   const line = lines.find((line) => line.includes(CURSOR_MARKER));
   assert.ok(line, "expected rendered lines to include CURSOR_MARKER");
@@ -484,6 +573,50 @@ function createEditorAtBufferEnd(text: string): ModalEditor {
 
   return editor;
 }
+
+// ---------------------------------------------------------------------------
+// Wrapper-facing editor surface
+// ---------------------------------------------------------------------------
+
+describe("wrapper-facing editor surface", () => {
+  it("exposes the CustomEditor-style surface later decorators need", () => {
+    const editor = new ModalEditor(stubTui, stubTheme, stubKeybindings);
+
+    assertWrapperFacingSurface(editor);
+  });
+
+  it("keeps modal behavior when a later decorator patches core methods in place", () => {
+    const editor = new ModalEditor(stubTui, stubTheme, stubKeybindings);
+    const calls = decorateLikeImageAttachments(editor);
+
+    editor.insertTextAtCursor("abc");
+    assert.equal(editor.getText(), "abc");
+
+    editor.setText("hello");
+    assert.equal(editor.getText(), "hello");
+
+    editor.handleInput("!");
+    assert.equal(editor.getText(), "hello!");
+    assert.equal(editor.getMode(), "insert");
+
+    editor.handleInput("\x1b");
+    assert.equal(editor.getMode(), "normal");
+
+    editor.handleInput("0");
+    editor.handleInput("x");
+    assert.equal(editor.getText(), "ello!");
+    assert.equal(editor.getMode(), "normal");
+
+    assert.deepEqual(calls, [
+      { method: "insertTextAtCursor", text: "abc" },
+      { method: "setText", text: "hello" },
+      { method: "handleInput", data: "!" },
+      { method: "handleInput", data: "\x1b" },
+      { method: "handleInput", data: "0" },
+      { method: "handleInput", data: "x" },
+    ]);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Mode transitions
