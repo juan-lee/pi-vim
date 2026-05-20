@@ -7,6 +7,11 @@ function nextImmediate(): Promise<void> {
   return new Promise<void>((resolve) => setImmediate(resolve));
 }
 
+async function nextClipboardDrain(): Promise<void> {
+  await nextImmediate();
+  await nextImmediate();
+}
+
 describe("clipboard mirror policy", () => {
   it("all clipboard mirror policy mirrors mutation and yank writes", async () => {
     const { editor, clipboardWrites } = createEditorWithSpy("foo bar");
@@ -86,7 +91,74 @@ describe("clipboard mirror policy", () => {
     assert.deepEqual(clipboardWrites, []);
   });
 
+  for (const scenario of [
+    {
+      policy: "all" as const,
+      write: ["d", "w"],
+      put: ["P"],
+      expectedText: "foo bar",
+      expectedClipboardWrites: ["foo "],
+    },
+    {
+      policy: "yank" as const,
+      write: ["d", "w"],
+      put: ["P"],
+      expectedText: "foo bar",
+      expectedClipboardWrites: [],
+    },
+    {
+      policy: "yank" as const,
+      write: ["y", "w"],
+      put: ["P"],
+      expectedText: "foo foo bar",
+      expectedClipboardWrites: ["foo "],
+    },
+    {
+      policy: "never" as const,
+      write: ["d", "w"],
+      put: ["P"],
+      expectedText: "foo bar",
+      expectedClipboardWrites: [],
+    },
+    {
+      policy: "never" as const,
+      write: ["y", "w"],
+      put: ["P"],
+      expectedText: "foo foo bar",
+      expectedClipboardWrites: [],
+    },
+  ]) {
+    it(`${scenario.policy} clipboard mirror policy chooses the expected put source after ${scenario.write.join("")}`, async () => {
+      const { editor, clipboardWrites } = createEditorWithSpy("foo bar");
+      let systemClipboard = "SYS";
+      editor.setClipboardMirrorPolicy(scenario.policy);
+      editor.setClipboardFn((text) => {
+        clipboardWrites.push(text);
+        systemClipboard = text;
+      });
+      editor.setClipboardReadFn(() => systemClipboard);
+
+      sendKeys(editor, scenario.write);
+      await nextClipboardDrain();
+      sendKeys(editor, scenario.put);
+
+      assert.equal(editor.getText(), scenario.expectedText);
+      assert.deepEqual(clipboardWrites, scenario.expectedClipboardWrites);
+    });
+  }
+
   for (const policy of ["all", "yank", "never"] as const) {
+    it(`${policy} clipboard mirror policy keeps empty no-op writes from pinning put to the register`, () => {
+      const { editor } = createEditorWithSpy("ab");
+      editor.setClipboardMirrorPolicy(policy);
+      editor.setClipboardReadFn(() => "SYS");
+
+      sendKeys(editor, ["$", "D", "p"]);
+
+      assert.equal(editor.getText(), "abSYS");
+      assert.equal(editor.getRegister(), "");
+    });
+
     it(`${policy} clipboard mirror policy keeps p reading OS clipboard`, () => {
       const { editor } = createEditorWithSpy("ab");
       editor.setClipboardMirrorPolicy(policy);

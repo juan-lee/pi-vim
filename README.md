@@ -30,26 +30,20 @@ Clipboard write mirroring is controlled by `piVim.clipboardMirror`:
 | `yank` | Mirror yanks only; deletes/changes update only pi-vim's internal register |
 | `never` | Never mirror register writes to the OS clipboard |
 
-The setting controls write mirroring only. `p` / `P` keep the paste policy documented below.
+The setting controls which local register writes cross the OS clipboard boundary. `p` / `P` keep non-mirrored writes local.
 
 ## wrapping pi-vim
 
-Supported: `pi-vim` first, `@jordyvd/pi-image-attachments` second. pi-vim does not call `ctx.ui.getEditorComponent()`; the wrapper does. Inverse order unsupported.
+Supported: `pi-vim` first, `@jordyvd/pi-image-attachments` second. pi-vim does not wrap previous editors; wrappers decorate in place or forward the CustomEditor surface: lifecycle (`handleInput`, `render`, `invalidate`), text (`getText`, `setText`, `insertTextAtCursor`, `getExpandedText`), callbacks, `actionHandlers`, flags, reads (`getLines`, `getCursor`, `getMode()`). Inverse order, insert delegates, and generic composition are unsupported.
 
-Wrappers must decorate in place or forward unintercepted surface: lifecycle (`handleInput`, `render`, `invalidate`), text (`getText`, `setText`, `insertTextAtCursor`, `getExpandedText`), callbacks (`onSubmit`, `onChange`, `onEscape`, `onCtrlD`, `onPasteImage`, `onExtensionShortcut`), `actionHandlers`, flags (`focused`, `disableSubmit`), reads (`getLines`, `getCursor`, `getMode()`).
-
-#18/#21 delegation is not adopted: no previous-extension wrapping, insert delegate, or generic composition layer.
-
-Manual smoke. If raw `-e` cannot resolve Pi peer packages, run `npm install --ignore-scripts --package-lock=false` in the image checkout.
+Smoke:
 
 ```bash
-# repo root
 pi -e ./index.ts -e ../pi-image-attachments/index.ts
-# this worktree
 pi -e ./index.ts -e ../../../pi-image-attachments/index.ts
 ```
 
-Check: insert text; add/paste image path; see `[Image #1]` widget; submit text+image stripped; switch INSERT/NORMAL modes.
+Check: insert text; add/paste image path; see `[Image #1]`; submit text+image stripped; switch INSERT/NORMAL.
 
 ## contributor setup
 
@@ -297,8 +291,7 @@ implemented and cancel the pending operator. Linewise counted yank (`{count}yy`,
 | `{count}p`   | Put `{count}` times after cursor                            |
 | `{count}P`   | Put `{count}` times before cursor                           |
 
-Put reads the OS clipboard first, falling back to the internal unnamed-register shadow on slow read.
-Paste text ending in `\n` is treated as line-wise.
+Put reads the OS clipboard first unless the last local register write was not mirrored. Paste text ending in `\n` is line-wise.
 
 ---
 
@@ -320,7 +313,8 @@ Paste text ending in `\n` is treated as line-wise.
 - `piVim.clipboardMirror = "yank"` mirrors yanks only; deletes and changes update only pi-vim's internal shadow.
 - `piVim.clipboardMirror = "never"` disables write mirroring while keeping internal register writes synchronous.
 - Rapid mirrored writes coalesce: only the latest pending value is guaranteed to be mirrored.
-- `p` / `P` read the OS clipboard first, falling back to the shadow on read failure/timeout.
+- `p` / `P` read the OS clipboard first when no local write was skipped by policy, falling back to the shadow on read failure/timeout.
+- If policy skipped the last local write, `p` / `P` use the shadow so delete/yank → put works without touching the OS clipboard.
 - While a mirror is in flight, `p` / `P` use the shadow so immediate yank/delete → put stays ordered.
 - Pi owns the terminal clipboard backends; on Wayland external state may lag while the shadow stays authoritative for immediate puts.
 

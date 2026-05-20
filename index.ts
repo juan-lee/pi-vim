@@ -554,6 +554,7 @@ export class ModalEditor extends CustomEditor {
 
   // Unnamed register
   private unnamedRegister: string = "";
+  private preferRegisterForPut = false;
   private clipboardMirrorPolicy: ClipboardMirrorPolicy = DEFAULT_CLIPBOARD_MIRROR_POLICY;
   private readonly clipboardMirror = new ClipboardMirror(writeClipboardInChildProcess);
   private clipboardReadFn: ClipboardReadFn = readClipboardInChildProcess;
@@ -592,7 +593,10 @@ export class ModalEditor extends CustomEditor {
   setQuitFn(fn: () => void): void { this.quitFn = fn; }
   setNotifyFn(fn: (message: string) => void): void { this.notifyFn = fn; }
   getRegister(): string { return this.unnamedRegister; }
-  setRegister(text: string): void { this.unnamedRegister = text; }
+  setRegister(text: string): void {
+    this.unnamedRegister = text;
+    this.preferRegisterForPut = false;
+  }
   getMode(): Mode { return this.mode; }
   getText(): string { return this.getLines().join("\n"); }
 
@@ -2362,8 +2366,9 @@ export class ModalEditor extends CustomEditor {
 
   private writeToRegister(text: string, source: RegisterWriteSource = "mutation"): void {
     this.unnamedRegister = text;
-    if (!text) return;
-    if (!this.shouldMirrorRegisterWrite(source)) return;
+    const shouldMirror = text !== "" && this.shouldMirrorRegisterWrite(source);
+    this.preferRegisterForPut = text !== "" && !shouldMirror;
+    if (!shouldMirror) return;
 
     this.clipboardMirror.mirror(text);
   }
@@ -2845,7 +2850,7 @@ export class ModalEditor extends CustomEditor {
   private static readonly PUT_SIZE_LIMIT = 512 * 1024; // 512 KB safety cap
 
   private getPasteRegisterText(): string {
-    if (this.clipboardMirror.hasPendingWrite()) {
+    if (this.preferRegisterForPut || this.clipboardMirror.hasPendingWrite()) {
       return this.unnamedRegister;
     }
 
