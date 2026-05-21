@@ -360,7 +360,7 @@ Explicitly deferred:
 - Visual modes (`v`, `V`, block visual), including Visual `%`
 - Tag text objects (`it`, `at`)
 - Paragraph/sentence text objects (`ip`, `ap`, `is`, `as`)
-- Angle bracket text objects (`i<`, `a<`) or `%` matching
+- Angle bracket text objects (`i<`, `a<`) or angle-bracket `%` matching
 - Visual-mode text-object selection
 - Quote matching via `%`, parser-aware delimiter matching, matchit-style matching, and mixed-delimiter structural validation
 - Delimited-object counts (`d2i"`, `2ci(`, `y2a{`)
