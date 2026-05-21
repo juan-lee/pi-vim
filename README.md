@@ -12,7 +12,7 @@ Restart Pi after install.
 
 ## configure
 
-pi-vim reads persistent Pi settings from `~/.pi/agent/settings.json` and project `.pi/settings.json`.
+Settings are read from `~/.pi/agent/settings.json` and project `.pi/settings.json`.
 
 Default-equivalent `settings.json`:
 
@@ -30,31 +30,17 @@ Default-equivalent `settings.json`:
 }
 ```
 
-Every key above is optional; omitting `piVim` entirely keeps the same defaults. Project settings override global settings. Project `modeColors` replaces global `modeColors` as a setting; any missing mode then uses the pi-vim default token for that mode.
+All keys are optional; omitting `piVim` is equivalent. Project overrides global; project `modeColors` replaces global `modeColors`, with missing modes defaulting above.
 
-| setting | default | behavior |
-|---------|---------|----------|
-| `clipboardMirror` | `"all"` | Mirror every unnamed-register write to the OS clipboard best-effort |
-| `modeColors.insert` | `"borderMuted"` | Foreground token for the `INSERT` label and, optionally, border |
-| `modeColors.normal` | `"borderAccent"` | Foreground token for the `NORMAL` label and, optionally, border |
-| `modeColors.ex` | `"warning"` | Foreground token for the `EX` label and, optionally, border |
-| `syncBorderColorWithMode` | `false` | Keep Pi's thinking-level border signal; `true` makes the prompt border follow mode colors |
+`clipboardMirror`: `all` mirrors unnamed writes; `yank` mirrors yanks; `never` keeps writes internal. Non-mirrored writes stay local for `p` / `P`.
 
-`piVim.clipboardMirror` controls which local register writes cross the OS clipboard boundary. `p` / `P` keep non-mirrored writes local.
-
-| value | behavior |
-|-------|----------|
-| `all` | Mirror every unnamed-register write |
-| `yank` | Mirror yanks only; deletes/changes update only pi-vim's internal register |
-| `never` | Never mirror register writes to the OS clipboard |
+`syncBorderColorWithMode`: `false` keeps Pi thinking border; `true` follows mode colors.
 
 ### mode colors
 
-`piVim.modeColors` accepts Pi theme foreground token names, not raw color literals. Missing, invalid, or unknown mode color tokens use the defaults above.
+`piVim.modeColors` accepts Pi theme foreground tokens. Missing, invalid, or unknown tokens use defaults above.
 
 Usual/safest: `accent`, `border`, `borderAccent`, `borderMuted`, `success`, `error`, `warning`, `muted`, `dim`, `text`, `thinkingText`.
-
-Contextual: `userMessageText`, `customMessageText`, `customMessageLabel`, `toolTitle`, `toolOutput`, `bashMode`.
 
 ## wrapping pi-vim
 
