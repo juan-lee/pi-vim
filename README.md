@@ -32,7 +32,39 @@ Clipboard write mirroring is controlled by `piVim.clipboardMirror`:
 
 The setting controls which local register writes cross the OS clipboard boundary. `p` / `P` keep non-mirrored writes local.
 
-Mode colors: `piVim.modeColors` accepts pi theme tokens (`insert`: `borderMuted`, `normal`: `borderAccent`, `ex`: `warning`); missing keys and unknown tokens use defaults. `piVim.syncBorderColorWithMode` defaults `false`; `true` syncs border to mode, overriding Pi's normal thinking-level border signal.
+### mode colors
+
+`piVim.modeColors` maps modes to Pi theme token names. Values are passed to Pi's `theme.fg(token, text)`, so prefer tokens that Pi themes already use for foreground text, status, or editor borders:
+
+```json
+{
+  "piVim": {
+    "modeColors": {
+      "insert": "borderMuted",
+      "normal": "borderAccent",
+      "ex": "warning"
+    },
+    "syncBorderColorWithMode": false
+  }
+}
+```
+
+Defaults are `insert`: `borderMuted`, `normal`: `borderAccent`, and `ex`: `warning`. Missing keys and unknown tokens use defaults.
+
+Safe starting tokens:
+
+| use | tokens |
+|-----|--------|
+| default/editor | `border`, `borderMuted`, `borderAccent`, `bashMode` |
+| status/accent | `accent`, `success`, `error`, `warning` |
+| quiet/default text | `muted`, `dim`, `text`, `thinkingText` |
+| thinking levels | `thinkingOff`, `thinkingMinimal`, `thinkingLow`, `thinkingMedium`, `thinkingHigh`, `thinkingXhigh` |
+| markdown/tool foregrounds | `toolTitle`, `toolOutput`, `mdHeading`, `mdLink`, `mdLinkUrl`, `mdCode`, `mdCodeBlock`, `mdQuote`, `mdQuoteBorder`, `mdHr`, `mdListBullet`, `toolDiffAdded`, `toolDiffRemoved`, `toolDiffContext` |
+| syntax foregrounds | `syntaxComment`, `syntaxKeyword`, `syntaxFunction`, `syntaxVariable`, `syntaxString`, `syntaxNumber`, `syntaxType`, `syntaxOperator`, `syntaxPunctuation` |
+
+Avoid background tokens for mode label foregrounds: `selectedBg`, `userMessageBg`, `customMessageBg`, `toolPendingBg`, `toolSuccessBg`, and `toolErrorBg` can be low contrast when used through `theme.fg`.
+
+`piVim.syncBorderColorWithMode` defaults `false`; `true` syncs border to mode, overriding Pi's normal thinking-level border signal.
 
 ## wrapping pi-vim
 
