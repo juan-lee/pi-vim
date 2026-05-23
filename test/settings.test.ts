@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   readPiVimBooleanSetting,
   readPiVimClipboardMirrorSetting,
+  readPiVimModeChange,
   readPiVimModeColors,
 } from "../settings.js";
 
@@ -205,6 +206,93 @@ describe("piVim boolean settings reader", () => {
         { piVim: { syncBorderColorWithMode: true } },
         { piVim: { syncBorderColorWithMode: "false" } },
         "syncBorderColorWithMode",
+      ),
+      undefined,
+    );
+  });
+});
+
+describe("piVim modeChange settings reader", () => {
+  it("returns undefined when modeChange is missing", () => {
+    assert.equal(readPiVimModeChange(undefined, undefined), undefined);
+    assert.equal(readPiVimModeChange({ piVim: {} }, { piVim: {} }), undefined);
+  });
+
+  it("reads partial modeChange settings and trims values", () => {
+    assert.deepEqual(
+      readPiVimModeChange(
+        { piVim: { modeChange: { insert: "  im-select Squirrel  " } } },
+        {},
+      ),
+      { insert: "im-select Squirrel" },
+    );
+  });
+
+  it("reads both insert and normal commands", () => {
+    assert.deepEqual(
+      readPiVimModeChange(
+        {
+          piVim: {
+            modeChange: {
+              insert: "im-select im.rime.inputmethod.Squirrel.Hans",
+              normal: "im-select com.apple.keylayout.ABC",
+            },
+          },
+        },
+        {},
+      ),
+      {
+        insert: "im-select im.rime.inputmethod.Squirrel.Hans",
+        normal: "im-select com.apple.keylayout.ABC",
+      },
+    );
+  });
+
+  it("drops non-string and empty modeChange leaves", () => {
+    assert.deepEqual(
+      readPiVimModeChange(
+        {
+          piVim: { modeChange: { insert: 42, normal: "  " } },
+        },
+        {},
+      ),
+      undefined,
+    );
+    assert.deepEqual(
+      readPiVimModeChange(
+        { piVim: { modeChange: { insert: "ok", normal: 42 } } },
+        {},
+      ),
+      { insert: "ok" },
+    );
+  });
+
+  it("lets project modeChange override global as a setting", () => {
+    assert.deepEqual(
+      readPiVimModeChange(
+        {
+          piVim: {
+            modeChange: { insert: "global-insert", normal: "global-normal" },
+          },
+        },
+        { piVim: { modeChange: { normal: "project-normal" } } },
+      ),
+      { normal: "project-normal" },
+    );
+  });
+
+  it("does not fall back to global when project modeChange is invalid", () => {
+    assert.equal(
+      readPiVimModeChange(
+        { piVim: { modeChange: { insert: "global-insert" } } },
+        { piVim: { modeChange: null } },
+      ),
+      undefined,
+    );
+    assert.equal(
+      readPiVimModeChange(
+        { piVim: { modeChange: { insert: "global-insert" } } },
+        { piVim: { modeChange: { insert: "   " } } },
       ),
       undefined,
     );

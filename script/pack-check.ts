@@ -65,11 +65,11 @@ const FORBIDDEN_REGEX_BY_GLOB: Record<
 
 const THRESHOLDS = {
   maxFiles: 12,
-  // WORD/delimited text objects, mode-color settings, matching-pair
-  // motion, and render caching add package surface. Keep budgets tight
-  // enough to catch accidental docs/tests in the package.
-  maxSize: 32300,
-  maxUnpackedSize: 141900,
+  // WORD/delimited text objects, mode-color settings, matching-pair motion,
+  // render caching, and mode-change hooks add package surface. Keep budgets
+  // tight enough to catch accidental docs/tests in the package.
+  maxSize: 35000,
+  maxUnpackedSize: 150000,
 } as const;
 
 function compareStrings(a: string, b: string): number {

@@ -30,11 +30,27 @@ Default-equivalent `settings.json`:
 }
 ```
 
-All keys are optional; omitting `piVim` is equivalent. Project overrides global; project `modeColors` replaces global `modeColors`, with missing modes defaulting above.
+All keys are optional; omitting `piVim` is equivalent. The optional `modeChange` key (see below) is intentionally absent from the default — it has no useful default value. Project overrides global; project `modeColors` / `modeChange` replace their global counterparts whole, with missing sub-keys defaulting above.
 
 `clipboardMirror`: `all` mirrors unnamed writes; `yank` mirrors yanks; `never` keeps writes internal. Non-mirrored writes stay local for `p` / `P`.
 
 `syncBorderColorWithMode`: `false` keeps Pi thinking border; `true` follows mode colors.
+
+`modeChange`: shell command to run on every transition into the named mode. Both keys are optional. The command runs detached via the system shell, stdio discarded, spawn errors silenced — editing never blocks or breaks. Hooks fire only on actual transitions: not on the initial mode, not on EX entry/exit (EX is a sub-state of normal), and not on no-op `Esc` from normal. Typical use is IME auto-switching via the third-party [`im-select`](https://github.com/daipeihust/im-select) CLI (cross-platform: macOS / Windows / Linux). Install per its README, then run `im-select` with no args to print your current IME id and plug those ids into the config:
+
+MacOS config maybe
+```json
+{
+  "piVim": {
+    "modeChange": {
+      "insert": "im-select im.rime.inputmethod.Squirrel.Hans",
+      "normal": "im-select com.apple.keylayout.ABC"
+    }
+  }
+}
+```
+
+pi-vim does not bundle `im-select` and does not care which tool you use — any shell command works.
 
 ### mode colors
 

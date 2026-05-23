@@ -6,14 +6,21 @@ export type ModeColorSettings = {
   ex?: string;
 };
 
+export type ModeChangeSettings = {
+  insert?: string;
+  normal?: string;
+};
+
 export type PiVimSettings = {
   clipboardMirror?: unknown;
   modeColors?: ModeColorSettings;
+  modeChange?: ModeChangeSettings;
   syncBorderColorWithMode?: boolean;
 };
 
 const M = Symbol(),
   C = ["insert", "normal", "ex"] as const,
+  MC = ["insert", "normal"] as const,
   T = /^[A-Za-z][A-Za-z0-9_-]{0,63}$/;
 const rec = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -36,6 +43,18 @@ function colors(v: unknown) {
   return Object.keys(r)[0] ? r : undefined;
 }
 
+function modeChange(v: unknown): ModeChangeSettings | undefined {
+  if (!rec(v)) return;
+  const r: ModeChangeSettings = {};
+  for (const k of MC) {
+    const x = v[k];
+    if (typeof x !== "string") continue;
+    const t = x.trim();
+    if (t.length > 0) r[k] = t;
+  }
+  return Object.keys(r)[0] ? r : undefined;
+}
+
 export function readPiVimClipboardMirrorSetting(g: unknown, p: unknown) {
   let v = get(p, "clipboardMirror");
   if (v !== M) return v;
@@ -51,6 +70,16 @@ export function readPiVimModeColors(g: unknown, p: unknown) {
   if (v !== M) return colors(v);
   const w = get(g, "modeColors");
   return colors(w);
+}
+
+export function readPiVimModeChange(g: unknown, p: unknown) {
+  // Same whole-setting override semantics as modeColors: a project value
+  // (even if malformed) suppresses the global, so personal mode-change
+  // commands never leak into a shared project checkout.
+  const v = get(p, "modeChange");
+  if (v !== M) return modeChange(v);
+  const w = get(g, "modeChange");
+  return modeChange(w);
 }
 
 export function readPiVimBooleanSetting(
@@ -71,6 +100,7 @@ function disk(cwd: string): PiVimSettings {
   return {
     clipboardMirror: readPiVimClipboardMirrorSetting(g, p),
     modeColors: readPiVimModeColors(g, p),
+    modeChange: readPiVimModeChange(g, p),
     syncBorderColorWithMode: readPiVimBooleanSetting(
       g,
       p,

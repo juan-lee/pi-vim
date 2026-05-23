@@ -22,7 +22,11 @@ import {
   reverseCharMotion,
   type WordMotionClass,
 } from "./motions.js";
-import { type ModeColorSettings, readPiVimSettings } from "./settings.js";
+import {
+  type ModeChangeSettings,
+  type ModeColorSettings,
+  readPiVimSettings,
+} from "./settings.js";
 import {
   resolveDelimitedTextObjectRange,
   resolveMatchingPairMotionTarget,
@@ -643,6 +647,7 @@ export class ModalEditor extends CustomEditor {
   private clipboardReadFn: ClipboardReadFn = readClipboardInChildProcess;
   private quitFn: () => void = () => {};
   private notifyFn: (message: string) => void = () => {};
+  private modeChangeFn: (mode: Mode, prevMode: Mode) => void = () => {};
 
   constructor(
     tui: CustomEditorConstructorArgs[0],
@@ -682,6 +687,9 @@ export class ModalEditor extends CustomEditor {
   setNotifyFn(fn: (message: string) => void): void {
     this.notifyFn = fn;
   }
+  setModeChangeFn(fn: (mode: Mode, prevMode: Mode) => void): void {
+    this.modeChangeFn = fn;
+  }
   getRegister(): string {
     return this.unnamedRegister;
   }
@@ -719,7 +727,15 @@ export class ModalEditor extends CustomEditor {
   }
 
   private setMode(mode: Mode = "insert"): void {
+    const prev = this.mode;
     this.mode = mode;
+    if (prev !== mode) {
+      try {
+        this.modeChangeFn(mode, prev);
+      } catch {
+        // mode-change side effects must never break editing
+      }
+    }
   }
 
   override setText(text: string): void {
@@ -2348,7 +2364,7 @@ export class ModalEditor extends CustomEditor {
     }
 
     this.deleteRangeByAbsolute(t.rangeAnchorAbs, t.targetAbs, true);
-    if (op === "c") this.mode = "insert";
+    if (op === "c") this.setMode("insert");
   }
 
   private getDelimitedTextObjectCursorAbs(): number {
@@ -3374,6 +3390,37 @@ export class ModalEditor extends CustomEditor {
   }
 }
 
+function spawnModeChangeCommand(command: string): void {
+  if (!command) return;
+  try {
+    const child = spawn(command, {
+      shell: true,
+      stdio: "ignore",
+      detached: true,
+      windowsHide: true,
+    });
+    child.on("error", () => {
+      // configured command may not exist on this machine; stay silent
+    });
+    child.unref();
+  } catch {
+    // spawn rejected synchronously (e.g., EMFILE) — never break the editor
+  }
+}
+
+function createModeChangeHandler(
+  modeChange: ModeChangeSettings | undefined,
+): ((mode: Mode, prevMode: Mode) => void) | null {
+  if (!modeChange) return null;
+  const insert = modeChange.insert;
+  const normal = modeChange.normal;
+  if (!insert && !normal) return null;
+  return (mode) => {
+    const command = mode === "insert" ? insert : normal;
+    if (command) spawnModeChangeCommand(command);
+  };
+}
+
 export default function (pi: ExtensionAPI) {
   let cursorShapeCleanup: CursorShapeCleanup | null = null;
 
@@ -3396,6 +3443,7 @@ export default function (pi: ExtensionAPI) {
       t && piVimSettings.syncBorderColorWithMode === true
         ? buildModeColorizers(t, modeColors)
         : null;
+    const modeChangeHandler = createModeChangeHandler(piVimSettings.modeChange);
     ctx.ui.setEditorComponent((tui, theme, kb) => {
       cursorShapeCleanup = enableCursorShapeSupport(tui);
       const editor = new ModalEditor(tui, theme, kb, {
@@ -3405,6 +3453,7 @@ export default function (pi: ExtensionAPI) {
       editor.setClipboardMirrorPolicy(clipboardMirrorPolicy.policy);
       editor.setQuitFn(() => ctx.shutdown());
       editor.setNotifyFn((message) => ctx.ui.notify(message, "warning"));
+      if (modeChangeHandler) editor.setModeChangeFn(modeChangeHandler);
       return editor;
     });
   });

@@ -927,6 +927,64 @@ describe("mode transitions", () => {
   });
 });
 
+describe("mode change callback", () => {
+  type ModeChangeEvent = {
+    mode: "normal" | "insert";
+    prev: "normal" | "insert";
+  };
+
+  it("fires on transitions only, with prev and new modes", () => {
+    const { editor } = createEditorWithSpy("hello");
+    const events: ModeChangeEvent[] = [];
+    editor.setModeChangeFn((mode, prev) => events.push({ mode, prev }));
+
+    // editor is in normal after createEditorWithSpy; setModeChangeFn was
+    // installed afterwards, so the prior insert→normal transition is not seen.
+    sendKeys(editor, ["i"]);
+    sendKeys(editor, ["\x1b"]);
+    sendKeys(editor, ["a"]);
+    sendKeys(editor, ["\x1b"]);
+
+    assert.deepEqual(events, [
+      { mode: "insert", prev: "normal" },
+      { mode: "normal", prev: "insert" },
+      { mode: "insert", prev: "normal" },
+      { mode: "normal", prev: "insert" },
+    ]);
+  });
+
+  it("does not fire on no-op same-mode setMode calls", () => {
+    const { editor } = createEditorWithSpy("hello");
+    const events: ModeChangeEvent[] = [];
+    editor.setModeChangeFn((mode, prev) => events.push({ mode, prev }));
+
+    // Already in normal mode; bare escape stays in normal and must not fire.
+    sendKeys(editor, ["\x1b"]);
+
+    assert.deepEqual(events, []);
+  });
+
+  it("fires once for o / O which open a line and enter insert", () => {
+    const { editor } = createMultiLineEditor("foo\nbar");
+    const events: ModeChangeEvent[] = [];
+    editor.setModeChangeFn((mode, prev) => events.push({ mode, prev }));
+
+    sendKeys(editor, ["o"]);
+    assert.equal(editor.getMode(), "insert");
+    assert.deepEqual(events, [{ mode: "insert", prev: "normal" }]);
+  });
+
+  it("swallows callback errors so editing keeps working", () => {
+    const { editor } = createEditorWithSpy("hello");
+    editor.setModeChangeFn(() => {
+      throw new Error("boom");
+    });
+
+    assert.doesNotThrow(() => sendKeys(editor, ["i"]));
+    assert.equal(editor.getMode(), "insert");
+  });
+});
+
 describe("ex mini-mode", () => {
   it("renders the pending EX command and consumes prefixed counts", () => {
     const session = createEditorWithSpy("hello");
