@@ -432,7 +432,7 @@ function main(): void {
   const startup = {
     runtime_only: measureStartup("", startupRuns),
     host_import: measureStartup(
-      `await import('@mariozechner/pi-coding-agent');`,
+      `await import('@earendil-works/pi-coding-agent');`,
       startupRuns,
     ),
     extension_import: measureStartup(
@@ -442,7 +442,7 @@ function main(): void {
   };
 
   const memory = {
-    host_import: measureHeap("@mariozechner/pi-coding-agent", memoryRuns),
+    host_import: measureHeap("@earendil-works/pi-coding-agent", memoryRuns),
     extension_import: measureHeap(extensionImport, memoryRuns),
   };
 

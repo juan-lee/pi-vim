@@ -343,9 +343,9 @@ async function createWorkspace(): Promise<string> {
     type: "module",
     dependencies: {
       [IMAGE_PACKAGE_NAME]: resolveImageAttachmentsDependency(workspace),
-      "@mariozechner/pi-ai": `file:${findPackageRoot("@mariozechner/pi-ai")}`,
-      "@mariozechner/pi-coding-agent": `file:${findPackageRoot("@mariozechner/pi-coding-agent")}`,
-      "@mariozechner/pi-tui": `file:${findPackageRoot("@mariozechner/pi-tui")}`,
+      "@earendil-works/pi-ai": `file:${findPackageRoot("@earendil-works/pi-ai")}`,
+      "@earendil-works/pi-coding-agent": `file:${findPackageRoot("@earendil-works/pi-coding-agent")}`,
+      "@earendil-works/pi-tui": `file:${findPackageRoot("@earendil-works/pi-tui")}`,
     },
   };
 

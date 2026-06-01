@@ -1,13 +1,16 @@
 import { spawn, spawnSync } from "node:child_process";
 
-import { CustomEditor, type ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import {
+  CustomEditor,
+  type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import {
   CURSOR_MARKER,
   Key,
   matchesKey,
   truncateToWidth,
   visibleWidth,
-} from "@mariozechner/pi-tui";
+} from "@earendil-works/pi-tui";
 import {
   type ClipboardMirrorPolicy,
   DEFAULT_CLIPBOARD_MIRROR_POLICY,
@@ -310,7 +313,7 @@ function isClipboardEnvironmentFailure(error: unknown): boolean {
 }
 
 const PI_CODING_AGENT_MODULE_URL = import.meta.resolve(
-  "@mariozechner/pi-coding-agent",
+  "@earendil-works/pi-coding-agent",
 );
 const CLIPBOARD_HELPER_SOURCE = `
 import { copyToClipboard } from ${JSON.stringify(PI_CODING_AGENT_MODULE_URL)};
