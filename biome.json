@@ -1,7 +1,15 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.4.8/schema.json",
   "files": {
-    "includes": ["**", "!node_modules", "!.pi", "!.tree", "!.tmp", "!doc"],
+    "includes": [
+      "**",
+      "!node_modules",
+      "!.claude",
+      "!.pi",
+      "!.tree",
+      "!.tmp",
+      "!doc"
+    ],
     "ignoreUnknown": true
   },
   "formatter": {
