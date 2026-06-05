@@ -12,6 +12,10 @@ npm run test:nvim  # all curated nvim parity cases
 
 The gate is separate from `npm test` and `npm run check` while the parity corpus is young.
 
+## feature workflow
+
+Every new or changed Vim-like feature should add curated nvim parity coverage in `test/nvim-parity.ts`, unless the behavior is intentionally not Vim-compatible. Intentional divergences need explicit tests and documentation.
+
 ## cmux side-by-side lab
 
 Requires running inside cmux:
