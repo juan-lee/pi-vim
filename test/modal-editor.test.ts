@@ -24,6 +24,7 @@ import {
   createExtensionApiHarness,
   createMultiLineEditor,
   sendKeys,
+  setInternalCursor,
   stubKeybindings,
   stubTheme,
   stubTui,
@@ -220,29 +221,6 @@ function assertNoCursorShapeSequences(lines: string[]): void {
   for (const line of lines) {
     assert.doesNotMatch(line, DECSCUSR_PATTERN);
   }
-}
-
-function setInternalCursor(
-  editor: ModalEditor,
-  cursorCol: number,
-  cursorLine: number = 0,
-): void {
-  const internal = editor as unknown as {
-    state?: { cursorLine?: number; cursorCol?: number };
-    preferredVisualCol?: number | null;
-    lastAction?: string | null;
-    tui?: { requestRender?: () => void };
-  };
-
-  if (!internal.state) {
-    throw new Error("ModalEditor test internal state unavailable");
-  }
-
-  internal.state.cursorLine = cursorLine;
-  internal.state.cursorCol = cursorCol;
-  internal.preferredVisualCol = null;
-  internal.lastAction = null;
-  internal.tui?.requestRender?.();
 }
 
 type InstalledExtension = {
@@ -4392,8 +4370,9 @@ describe("Universal Counts: Change and Nav", () => {
 
   it("3h moves cursor left by three columns", () => {
     const { editor } = createEditorWithSpy("abcdef");
+    setInternalCursor(editor, 5);
 
-    sendKeys(editor, ["$", "h", "3", "h"]);
+    sendKeys(editor, ["3", "h"]);
 
     assert.deepEqual(editor.getCursor(), { line: 0, col: 2 });
   });
@@ -4421,43 +4400,73 @@ describe("Universal Counts: Change and Nav", () => {
 // ---------------------------------------------------------------------------
 
 describe("EOL and newline semantics", () => {
-  it("D at EOL captures '\\n' in register when next line exists", () => {
-    const { editor, clipboardWrites } = createMultiLineEditor("line1\nline2");
-    // cursor at col 0 of line 0; go to EOL
-    sendKeys(editor, ["$"]); // CTRL_E → col past last char (col 5 for "line1")
-    sendKeys(editor, ["D"]);
-    assert.equal(editor.getRegister(), "\n");
-    assert.deepEqual(clipboardWrites, ["\n"]);
-    // CTRL_K at EOL joins the two lines
-    assert.equal(editor.getText(), "line1line2");
-  });
-
-  it("d$ at EOL matches D behavior (captures newline and joins lines)", () => {
-    const { editor, clipboardWrites } = createMultiLineEditor("line1\nline2");
-    sendKeys(editor, ["$", "d", "$"]);
-
-    assert.equal(editor.getRegister(), "\n");
-    assert.deepEqual(clipboardWrites, ["\n"]);
-    assert.equal(editor.getText(), "line1line2");
-  });
-
-  it("D at EOL on last line is a no-op (register stays empty)", () => {
+  it("$ moves to the last character instead of past EOL", () => {
     const { editor } = createEditorWithSpy("hello");
-    // cursor col 0, go to EOL
+
     sendKeys(editor, ["$"]);
+
+    assert.deepEqual(editor.getCursor(), { line: 0, col: 4 });
+  });
+
+  it("$ moves to the start of the last grapheme", () => {
+    const { editor } = createEditorWithSpy("a😀");
+
+    sendKeys(editor, ["$"]);
+
+    assert.deepEqual(editor.getCursor(), { line: 0, col: 1 });
+  });
+
+  it("$x deletes the last character and moves back", () => {
+    const { editor } = createEditorWithSpy("hello");
+
+    sendKeys(editor, ["$", "x"]);
+
+    assert.equal(editor.getRegister(), "o");
+    assert.equal(editor.getText(), "hell");
+    assert.deepEqual(editor.getCursor(), { line: 0, col: 3 });
+  });
+
+  it("D at past-EOL captures '\\n' in register when next line exists", () => {
+    const { editor, clipboardWrites } = createMultiLineEditor("line1\nline2");
+    setInternalCursor(editor, 5);
+
     sendKeys(editor, ["D"]);
-    // col >= line.length AND no next line → deleted = "" → no-op (register empty)
+
+    assert.equal(editor.getRegister(), "\n");
+    assert.deepEqual(clipboardWrites, ["\n"]);
+    assert.equal(editor.getText(), "line1line2");
+  });
+
+  it("d$ at past-EOL matches D behavior (captures newline and joins lines)", () => {
+    const { editor, clipboardWrites } = createMultiLineEditor("line1\nline2");
+    setInternalCursor(editor, 5);
+
+    sendKeys(editor, ["d", "$"]);
+
+    assert.equal(editor.getRegister(), "\n");
+    assert.deepEqual(clipboardWrites, ["\n"]);
+    assert.equal(editor.getText(), "line1line2");
+  });
+
+  it("D at past-EOL on last line is a no-op (register stays empty)", () => {
+    const { editor } = createEditorWithSpy("hello");
+    setInternalCursor(editor, 5);
+
+    sendKeys(editor, ["D"]);
+
     assert.equal(editor.getRegister(), "");
     assert.equal(editor.getText(), "hello");
   });
 
   it("x at past-EOL position is a no-op (does not join next line)", () => {
     const { editor } = createMultiLineEditor("line1\nline2");
-    sendKeys(editor, ["$"]); // move to col 5 (past end of "line1")
+    setInternalCursor(editor, 5);
     const before = editor.getText();
+
     sendKeys(editor, ["x"]);
-    assert.equal(editor.getText(), before); // text unchanged
-    assert.equal(editor.getRegister(), ""); // nothing captured
+
+    assert.equal(editor.getText(), before);
+    assert.equal(editor.getRegister(), "");
   });
 
   it("x on last char of line deletes only that char, does not join lines", () => {
@@ -4699,27 +4708,79 @@ describe("operator word-motion path selection", () => {
   });
 
   it("cross-line operator word motions fall back to canonical scanner", () => {
-    const scenarios: Array<{ name: string; initial: string; keys: string[] }> =
-      [
-        { name: "dw@EOL", initial: "foo\nbar", keys: ["$", "d", "w"] },
-        { name: "cw@EOL", initial: "foo\nbar", keys: ["$", "c", "w"] },
-        { name: "yw@EOL", initial: "foo\nbar", keys: ["$", "y", "w"] },
-        { name: "db@BOL", initial: "foo\nbar", keys: ["j", "0", "d", "b"] },
-        { name: "cb@BOL", initial: "foo\nbar", keys: ["j", "0", "c", "b"] },
-        { name: "yb@BOL", initial: "foo\nbar", keys: ["j", "0", "y", "b"] },
-        { name: "dW@EOL", initial: "foo\nbar", keys: ["$", "d", "W"] },
-        { name: "cW@EOL", initial: "foo\nbar", keys: ["$", "c", "W"] },
-        { name: "yW@EOL", initial: "foo\nbar", keys: ["$", "y", "W"] },
-        { name: "dE@EOL", initial: "foo\nbar", keys: ["$", "d", "E"] },
-        { name: "cE@EOL", initial: "foo\nbar", keys: ["$", "c", "E"] },
-        { name: "yE@EOL", initial: "foo\nbar", keys: ["$", "y", "E"] },
-        { name: "dB@BOL", initial: "foo\nbar", keys: ["j", "0", "d", "B"] },
-        { name: "cB@BOL", initial: "foo\nbar", keys: ["j", "0", "c", "B"] },
-        { name: "yB@BOL", initial: "foo\nbar", keys: ["j", "0", "y", "B"] },
-      ];
+    const scenarios: Array<{
+      name: string;
+      initial: string;
+      keys: string[];
+      cursor?: { line: number; col: number };
+    }> = [
+      {
+        name: "dw@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["d", "w"],
+      },
+      {
+        name: "cw@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["c", "w"],
+      },
+      {
+        name: "yw@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["y", "w"],
+      },
+      { name: "db@BOL", initial: "foo\nbar", keys: ["j", "0", "d", "b"] },
+      { name: "cb@BOL", initial: "foo\nbar", keys: ["j", "0", "c", "b"] },
+      { name: "yb@BOL", initial: "foo\nbar", keys: ["j", "0", "y", "b"] },
+      {
+        name: "dW@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["d", "W"],
+      },
+      {
+        name: "cW@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["c", "W"],
+      },
+      {
+        name: "yW@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["y", "W"],
+      },
+      {
+        name: "dE@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["d", "E"],
+      },
+      {
+        name: "cE@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["c", "E"],
+      },
+      {
+        name: "yE@EOL",
+        initial: "foo\nbar",
+        cursor: { line: 0, col: 3 },
+        keys: ["y", "E"],
+      },
+      { name: "dB@BOL", initial: "foo\nbar", keys: ["j", "0", "d", "B"] },
+      { name: "cB@BOL", initial: "foo\nbar", keys: ["j", "0", "c", "B"] },
+      { name: "yB@BOL", initial: "foo\nbar", keys: ["j", "0", "y", "B"] },
+    ];
 
     for (const scenario of scenarios) {
       const { editor } = createMultiLineEditor(scenario.initial);
+      if (scenario.cursor) {
+        setInternalCursor(editor, scenario.cursor.col, scenario.cursor.line);
+      }
       const raw = getRawEditor(editor);
       const original = raw.findWordTargetInText.bind(raw);
       let calls = 0;
@@ -6333,16 +6394,18 @@ describe("char-find motions — f / F / t / T / ; / ,", () => {
 
   it("T{char} at EOL lands at line end instead of crashing", () => {
     const { editor } = createEditorWithSpy("abc");
+    setInternalCursor(editor, 3);
 
-    sendKeys(editor, ["$", "T", "c"]);
+    sendKeys(editor, ["T", "c"]);
 
     assert.deepEqual(editor.getCursor(), { line: 0, col: 3 });
   });
 
   it("T{char} after an emoji target at EOL lands safely", () => {
     const { editor } = createEditorWithSpy("ab😀");
+    setInternalCursor(editor, 4);
 
-    sendKeys(editor, ["$", "T", "😀"]);
+    sendKeys(editor, ["T", "😀"]);
 
     assert.deepEqual(editor.getCursor(), { line: 0, col: 4 });
   });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { createEditorWithSpy, sendKeys } from "./harness.js";
+import { createEditorWithSpy, sendKeys, setInternalCursor } from "./harness.js";
 
 function nextImmediate(): Promise<void> {
   return new Promise<void>((resolve) => setImmediate(resolve));
@@ -153,7 +153,8 @@ describe("clipboard mirror policy", () => {
       editor.setClipboardMirrorPolicy(policy);
       editor.setClipboardReadFn(() => "SYS");
 
-      sendKeys(editor, ["$", "D", "p"]);
+      setInternalCursor(editor, 2);
+      sendKeys(editor, ["D", "p"]);
 
       assert.equal(editor.getText(), "abSYS");
       assert.equal(editor.getRegister(), "");

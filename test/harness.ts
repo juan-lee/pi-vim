@@ -135,6 +135,29 @@ export function sendKeys(editor: ModalEditor, keys: string[]): void {
   }
 }
 
+export function setInternalCursor(
+  editor: ModalEditor,
+  cursorCol: number,
+  cursorLine: number = 0,
+): void {
+  const internal = editor as unknown as {
+    state?: { cursorLine?: number; cursorCol?: number };
+    preferredVisualCol?: number | null;
+    lastAction?: string | null;
+    tui?: { requestRender?: () => void };
+  };
+
+  if (!internal.state) {
+    throw new Error("ModalEditor test internal state unavailable");
+  }
+
+  internal.state.cursorLine = cursorLine;
+  internal.state.cursorCol = cursorCol;
+  internal.preferredVisualCol = null;
+  internal.lastAction = null;
+  internal.tui?.requestRender?.();
+}
+
 /**
  * Create a ModalEditor pre-loaded with `initialText`, positioned in NORMAL
  * mode with cursor at line start. Returns the editor plus clipboard spy data.

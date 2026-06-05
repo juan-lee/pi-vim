@@ -1997,6 +1997,12 @@ export class ModalEditor extends CustomEditor {
         this.setMode();
         this.moveCursorToFirstNonWhitespace();
         break;
+      case "$": {
+        const { line } = this.getCurrentLineAndCol();
+        const graphemes = getLineGraphemes(line);
+        this.moveCursorToCol(graphemes[graphemes.length - 1]?.start ?? 0);
+        break;
+      }
       case "o":
         this.openLineBelow();
         this.setMode();
