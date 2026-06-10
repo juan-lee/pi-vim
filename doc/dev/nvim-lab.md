@@ -14,7 +14,7 @@ The gate is separate from `npm test` and `npm run check` while the parity corpus
 
 ## feature workflow
 
-Every new or changed Vim-like feature should add curated nvim parity coverage in `test/nvim-parity.ts`, unless the behavior is intentionally not Vim-compatible. Intentional divergences need explicit tests and documentation.
+Every new or changed Vim-like feature should add curated nvim parity coverage in `test/nvim-parity*.ts`, unless the behavior is intentionally not Vim-compatible. Intentional divergences need explicit tests and documentation.
 
 ## cmux side-by-side lab
 
@@ -86,4 +86,4 @@ Rules of thumb:
 - Use `cmux send` for printable characters such as `$` and `x`.
 - Use `cmux send-key` for special keys such as `escape` and `enter`.
 - Keep Pi isolated with the `--no-*` flags above so package notices, skills, and other extensions do not obscure the prompt.
-- Treat cmux as the microscope. Once you find a discrepancy, add a curated case to `test/nvim-parity.ts`.
+- Treat cmux as the microscope. Once you find a discrepancy, add a curated case to `test/nvim-parity*.ts`.

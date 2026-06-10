@@ -53,7 +53,7 @@ When fixing issues, follow these principles:
 Reviewers MUST flag:
 - User-visible behavior changes without focused tests.
 - New or changed Vim-like features without curated nvim
-  parity coverage in `test/nvim-parity.ts`, unless the
+  parity coverage in `test/nvim-parity*.ts`, unless the
   behavior is an intentional divergence and that divergence
   is explicit in tests and docs.
 - Focused tests that do not assert the affected observable
