@@ -307,19 +307,30 @@ function isClipboardEnvironmentFailure(error: unknown): boolean {
   return error instanceof ClipboardSpawnError || isNodeSpawnErrno(error);
 }
 
-let PI_CODING_AGENT_MODULE_URL: string;
-try {
-  PI_CODING_AGENT_MODULE_URL = import.meta.resolve(
+let piCodingAgentModuleUrl: string | null;
+function getPiCodingAgentModuleUrl(): string | null {
+  if (piCodingAgentModuleUrl !== undefined) return piCodingAgentModuleUrl;
+  for (const specifier of [
     "@earendil-works/pi-coding-agent",
-  );
-} catch {
-  // Fallback for omp compiled-binary mode where import.meta.resolve
-  // cannot resolve @earendil-works/* (the compat shim only rewrites
-  // from/import patterns, not import.meta.resolve).
-  PI_CODING_AGENT_MODULE_URL = import.meta.resolve("@oh-my-pi/pi-coding-agent");
+    "@oh-my-pi/pi-coding-agent",
+  ]) {
+    try {
+      piCodingAgentModuleUrl = import.meta.resolve(specifier);
+      return piCodingAgentModuleUrl;
+    } catch {
+      // Try next specifier
+    }
+  }
+  // Neither bare package resolves from the plugin directory in omp
+  // compiled-binary mode. Clipboard operations will degrade gracefully.
+  piCodingAgentModuleUrl = null;
+  return null;
 }
-const CLIPBOARD_HELPER_SOURCE = `
-import { copyToClipboard } from ${JSON.stringify(PI_CODING_AGENT_MODULE_URL)};
+function getClipboardHelperSource(): string | null {
+  const url = getPiCodingAgentModuleUrl();
+  if (!url) return null;
+  return `
+import { copyToClipboard } from ${JSON.stringify(url)};
 
 const chunks = [];
 for await (const chunk of process.stdin) {
@@ -330,11 +341,14 @@ try {
   await Promise.resolve(copyToClipboard(Buffer.concat(chunks).toString("utf8")));
 } catch {}
 `;
-
-const CLIPBOARD_READ_HELPER_SOURCE = `
+}
+function getClipboardReadHelperSource(): string | null {
+  const url = getPiCodingAgentModuleUrl();
+  if (!url) return null;
+  return `
 import { createRequire } from "node:module";
 
-const require = createRequire(${JSON.stringify(PI_CODING_AGENT_MODULE_URL)});
+const require = createRequire(${JSON.stringify(url)});
 const clipboard = require("@mariozechner/clipboard");
 if (!await clipboard.hasText()) {
   process.exit(0);
@@ -344,12 +358,15 @@ if (typeof text === "string") {
   process.stdout.write(text);
 }
 `;
+}
 
 function readClipboardInChildProcess(): string | null {
+  const helperSource = getClipboardReadHelperSource();
+  if (!helperSource) return null;
   try {
     const result = spawnSync(
       process.execPath,
-      ["--input-type=module", "-e", CLIPBOARD_READ_HELPER_SOURCE],
+      ["--input-type=module", "-e", helperSource],
       {
         encoding: "utf8",
         maxBuffer: CLIPBOARD_READ_MAX_BUFFER_BYTES,
@@ -421,9 +438,14 @@ function writeClipboardInChildProcess(
     }
 
     try {
+      const helperSource = getClipboardHelperSource();
+      if (!helperSource) {
+        finish(createClipboardAbortError("clipboard module not available"));
+        return;
+      }
       child = spawn(
         process.execPath,
-        ["--input-type=module", "-e", CLIPBOARD_HELPER_SOURCE],
+        ["--input-type=module", "-e", helperSource],
         {
           stdio: ["pipe", "pipe", "ignore"],
           windowsHide: true,
