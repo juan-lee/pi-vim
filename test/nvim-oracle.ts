@@ -30,18 +30,6 @@ export type NvimParitySnapshot = {
   register: string;
 };
 
-type ModalEditorMutable = {
-  state?: {
-    lines?: string[];
-    cursorLine?: number;
-    cursorCol?: number;
-  };
-  preferredVisualCol?: number | null;
-  tui?: {
-    requestRender?: () => void;
-  };
-};
-
 type RawNvimSnapshot = {
   text: string;
   cursor: NvimParityCursor;
@@ -125,21 +113,7 @@ function assertSnapshot(value: unknown): asserts value is RawNvimSnapshot {
 }
 
 function setPiCursor(editor: ModalEditor, cursor: NvimParityCursor): void {
-  const mutable = editor as unknown as ModalEditorMutable;
-  const state = mutable.state;
-  if (!state || !Array.isArray(state.lines)) {
-    throw new Error("ModalEditor state is unavailable");
-  }
-
-  const maxLine = Math.max(0, state.lines.length - 1);
-  const line = Math.max(0, Math.min(cursor.line, maxLine));
-  const lineText = state.lines[line] ?? "";
-  const col = Math.max(0, Math.min(cursor.col, lineText.length));
-
-  state.cursorLine = line;
-  state.cursorCol = col;
-  mutable.preferredVisualCol = col;
-  mutable.tui?.requestRender?.();
+  editor.setCursorPosition(cursor.line, cursor.col);
 }
 
 function takePiSnapshot(editor: ModalEditor): NvimParitySnapshot {
@@ -147,7 +121,7 @@ function takePiSnapshot(editor: ModalEditor): NvimParitySnapshot {
   return {
     text: editor.getText(),
     cursor: { line: cursor.line, col: cursor.col },
-    mode: editor.getMode(),
+    mode: editor.getMode() as NvimParityMode,
     register: editor.getRegister(),
   };
 }

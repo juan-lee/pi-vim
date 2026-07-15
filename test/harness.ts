@@ -2,7 +2,9 @@
  * Test harness for ModalEditor integration tests.
  */
 
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+
+import { KeybindingsManager, TUI_KEYBINDINGS } from "@oh-my-pi/pi-tui";
 
 import { ModalEditor } from "../index.js";
 
@@ -136,15 +138,69 @@ export function createExtensionApiHarness(): ExtensionApiHarness {
   return harness as unknown as ExtensionApiHarness;
 }
 
+const boxSymbols = {
+  topLeft: "╭",
+  topRight: "╮",
+  bottomLeft: "╰",
+  bottomRight: "╯",
+  horizontal: "─",
+  vertical: "│",
+  teeDown: "┬",
+  teeUp: "┴",
+  teeLeft: "┤",
+  teeRight: "├",
+  cross: "┼",
+};
+
 export const stubTheme = {
   borderColor: (s: string) => s,
   fg: (_k: string, s: string) => s,
   bold: (s: string) => s,
+  symbols: {
+    cursor: "▏",
+    inputCursor: "\x1b[7m \x1b[0m",
+    boxRound: {
+      topLeft: "╭",
+      topRight: "╮",
+      bottomLeft: "╰",
+      bottomRight: "╯",
+      horizontal: "─",
+      vertical: "│",
+    },
+    boxSharp: boxSymbols,
+    table: boxSymbols,
+    quoteBorder: "│",
+    hrChar: "─",
+    spinnerFrames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+  },
+  selectList: {
+    selectedPrefix: (t: string) => t,
+    selectedText: (t: string) => t,
+    description: (t: string) => t,
+    scrollInfo: (t: string) => t,
+    noMatch: (t: string) => t,
+    symbols: {
+      cursor: "▏",
+      inputCursor: "▏",
+      boxRound: {
+        topLeft: "╭",
+        topRight: "╮",
+        bottomLeft: "╰",
+        bottomRight: "╯",
+        horizontal: "─",
+        vertical: "│",
+      },
+      boxSharp: boxSymbols,
+      table: boxSymbols,
+      quoteBorder: "│",
+      hrChar: "─",
+      spinnerFrames: ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"],
+    },
+  },
+  editorPaddingX: 0,
 } as unknown as ModalEditorConstructorArgs[1];
 
-export const stubKeybindings = {
-  matches: () => false,
-} as unknown as ModalEditorConstructorArgs[2];
+export const stubKeybindings = new KeybindingsManager(TUI_KEYBINDINGS);
 
 /**
  * Send an array of key events to the editor.
@@ -161,22 +217,7 @@ export function setInternalCursor(
   cursorCol: number,
   cursorLine: number = 0,
 ): void {
-  const internal = editor as unknown as {
-    state?: { cursorLine?: number; cursorCol?: number };
-    preferredVisualCol?: number | null;
-    lastAction?: string | null;
-    tui?: { requestRender?: () => void };
-  };
-
-  if (!internal.state) {
-    throw new Error("ModalEditor test internal state unavailable");
-  }
-
-  internal.state.cursorLine = cursorLine;
-  internal.state.cursorCol = cursorCol;
-  internal.preferredVisualCol = null;
-  internal.lastAction = null;
-  internal.tui?.requestRender?.();
+  editor.setCursorPosition(cursorLine, cursorCol);
 }
 
 /**
@@ -256,19 +297,7 @@ export function createMultiLineEditor(text: string): {
   // Escape → normal, then position at line 0 / col 0 directly so the
   // fixture doesn't depend on navigation behavior under test.
   editor.handleInput("\x1b");
-  const internal = editor as unknown as {
-    state?: { cursorLine?: number; cursorCol?: number };
-    preferredVisualCol?: number | null;
-    lastAction?: string | null;
-    tui?: { requestRender?: () => void };
-  };
-  if (internal.state) {
-    internal.state.cursorLine = 0;
-    internal.state.cursorCol = 0;
-  }
-  internal.lastAction = null;
-  internal.preferredVisualCol = null;
-  internal.tui?.requestRender?.();
+  editor.setCursorPosition(0, 0);
 
   return {
     editor,
