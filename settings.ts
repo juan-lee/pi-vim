@@ -1,4 +1,12 @@
-import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import {
+  CONFIG_DIR_NAME,
+  getAgentDir,
+  MAIN_CONFIG_FILENAMES,
+} from "@oh-my-pi/pi-utils";
+import * as YAML from "js-yaml";
 
 export type ModeColorSettings = {
   insert?: string;
@@ -93,10 +101,49 @@ export function readPiVimBooleanSetting(
   return typeof w === "boolean" ? w : undefined;
 }
 
+function readConfigFile(filePath: string): Record<string, unknown> {
+  let content: string;
+  try {
+    content = readFileSync(filePath, "utf8");
+  } catch {
+    return {};
+  }
+  if (filePath.endsWith(".json")) {
+    try {
+      const parsed = JSON.parse(content);
+      return typeof parsed === "object" &&
+        parsed !== null &&
+        !Array.isArray(parsed)
+        ? (parsed as Record<string, unknown>)
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  try {
+    const parsed = YAML.load(content);
+    return typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
 function disk(cwd: string): PiVimSettings {
-  const s = SettingsManager.create(cwd),
-    g = s.getGlobalSettings(),
-    p = s.getProjectSettings();
+  const agentDir = getAgentDir();
+  let g: Record<string, unknown> = {};
+  for (const filename of MAIN_CONFIG_FILENAMES) {
+    g = { ...g, ...readConfigFile(join(agentDir, filename)) };
+  }
+  const projectDir = join(cwd, CONFIG_DIR_NAME);
+  const p: Record<string, unknown> = {
+    ...readConfigFile(join(projectDir, "settings.json")),
+    ...readConfigFile(join(projectDir, "config.yml")),
+    ...readConfigFile(join(projectDir, "config.yaml")),
+  };
   return {
     clipboardMirror: readPiVimClipboardMirrorSetting(g, p),
     modeColors: readPiVimModeColors(g, p),
