@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-
 import {
   CONFIG_DIR_NAME,
   getAgentDir,
   MAIN_CONFIG_FILENAMES,
 } from "@oh-my-pi/pi-utils";
-import * as YAML from "js-yaml";
+import { YAML } from "bun";
 
 export type ModeColorSettings = {
   insert?: string;
@@ -121,7 +120,7 @@ function readConfigFile(filePath: string): Record<string, unknown> {
     }
   }
   try {
-    const parsed = YAML.load(content);
+    const parsed = YAML.parse(content);
     return typeof parsed === "object" &&
       parsed !== null &&
       !Array.isArray(parsed)
