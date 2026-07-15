@@ -4,7 +4,7 @@ import {
   CONFIG_DIR_NAME,
   getAgentDir,
   MAIN_CONFIG_FILENAMES,
-} from "@oh-my-pi/pi-utils";
+} from "@earendil-works/pi-utils";
 import { YAML } from "bun";
 
 export type ModeColorSettings = {

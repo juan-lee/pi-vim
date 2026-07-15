@@ -2,9 +2,9 @@
  * Test harness for ModalEditor integration tests.
  */
 
-import type { ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
-import { KeybindingsManager, TUI_KEYBINDINGS } from "@oh-my-pi/pi-tui";
+import { KeybindingsManager, TUI_KEYBINDINGS } from "@earendil-works/pi-tui";
 
 import { ModalEditor } from "../index.js";
 

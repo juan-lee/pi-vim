@@ -12,7 +12,7 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
-import { CURSOR_MARKER, visibleWidth } from "@oh-my-pi/pi-tui";
+import { CURSOR_MARKER, visibleWidth } from "@earendil-works/pi-tui";
 import installPiVim, {
   ModalEditor,
   setModeChangeCommandRunnerForTests,
@@ -2049,7 +2049,7 @@ describe("cursor shape rendering", () => {
   });
 
   it.skip("keeps the software cursor when focused render has no cursor marker", () => {
-    // SKIPPED: @oh-my-pi/pi-tui Editor uses JS-private #autocompleteState with
+    // SKIPPED: @earendil-works/pi-tui Editor uses JS-private #autocompleteState with
     // no public setter. Cannot simulate active autocomplete from outside.
     const tui = createCursorShapeTui({ initialShowHardwareCursor: true });
     const editor = new ModalEditor(tui, stubTheme, stubKeybindings);

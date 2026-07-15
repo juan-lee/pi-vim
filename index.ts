@@ -1,6 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
 
-import { CustomEditor, type ExtensionAPI } from "@oh-my-pi/pi-coding-agent";
+import {
+  CustomEditor,
+  type ExtensionAPI,
+} from "@earendil-works/pi-coding-agent";
 import {
   CURSOR_MARKER,
   type EditorTheme,
@@ -10,7 +13,7 @@ import {
   type TUI,
   truncateToWidth,
   visibleWidth,
-} from "@oh-my-pi/pi-tui";
+} from "@earendil-works/pi-tui";
 import {
   type ClipboardMirrorPolicy,
   DEFAULT_CLIPBOARD_MIRROR_POLICY,
@@ -304,9 +307,17 @@ function isClipboardEnvironmentFailure(error: unknown): boolean {
   return error instanceof ClipboardSpawnError || isNodeSpawnErrno(error);
 }
 
-const PI_CODING_AGENT_MODULE_URL = import.meta.resolve(
-  "@oh-my-pi/pi-coding-agent",
-);
+let PI_CODING_AGENT_MODULE_URL: string;
+try {
+  PI_CODING_AGENT_MODULE_URL = import.meta.resolve(
+    "@earendil-works/pi-coding-agent",
+  );
+} catch {
+  // Fallback for omp compiled-binary mode where import.meta.resolve
+  // cannot resolve @earendil-works/* (the compat shim only rewrites
+  // from/import patterns, not import.meta.resolve).
+  PI_CODING_AGENT_MODULE_URL = import.meta.resolve("@oh-my-pi/pi-coding-agent");
+}
 const CLIPBOARD_HELPER_SOURCE = `
 import { copyToClipboard } from ${JSON.stringify(PI_CODING_AGENT_MODULE_URL)};
 
@@ -1221,7 +1232,7 @@ export class ModalEditor extends CustomEditor {
   }
 
   private clearUnderlyingPasteStateIfActive(): void {
-    // The BracketedPasteHandler in @oh-my-pi/pi-tui Editor uses JS-private
+    // The BracketedPasteHandler in @earendil-works/pi-tui Editor uses JS-private
     // #active/#buffer fields with no public reset. Send the paste-end marker
     // to terminate any unterminated bracketed paste and flush buffered input.
     super.handleInput("\x1b[201~");

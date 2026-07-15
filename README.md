@@ -100,7 +100,7 @@ u          # undo
 
 Mode indicator (`INSERT` / `NORMAL` / `EX`) appears bottom-right, theme-colored and configurable.
 
-*Requires `@oh-my-pi/pi-tui >= 16.5.2`. With DECSCUSR support, cursor shape follows mode; otherwise software cursor remains.
+*Requires `@earendil-works/pi-tui >= 16.5.2`. With DECSCUSR support, cursor shape follows mode; otherwise software cursor remains.
 
 ## why pi-vim
 
